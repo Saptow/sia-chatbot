@@ -1,0 +1,23 @@
+services:
+  openwebui:
+      image: ghcr.io/open-webui/open-webui:main
+      ports:
+        - "3000:8080"
+      volumes:
+        - open-webui:/app/backend/data
+
+  pipelines:
+    build:
+      context: .
+    volumes:
+      - ./pipelines:/app/pipelines
+      - ./pipelines/chromadb:/app/chroma_db #for hybrid rag
+    ports:
+      - "9099:9099"
+    restart: always
+    env_file:
+      - .env
+
+volumes:
+  open-webui: {}
+  pipelines: {}
