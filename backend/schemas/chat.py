@@ -54,15 +54,21 @@ class GraphRAGChatbot(GraphRAG):
     def __init__(self):
         # Initialise Neo4j specific components for driver, embedder, retriever, llm, rag
         driver = GraphDatabase.driver(
-            uri=os.getenv('NEO4J_URI',''),
+            uri='neo4j+ssc://e0a0bc0d.databases.neo4j.io',
             auth=(os.getenv('NEO4J_USERNAME',''), os.getenv('NEO4J_PASSWORD',''))
         )
+        try:
+            driver.verify_connectivity()
+            print("Connected to Neo4j database.")
+        except Exception as e:
+            print("Error connecting to Neo4j database:", e)
+            raise e
         try: 
             embedder=SentenceTransformerEmbeddings(model='intfloat/e5-base-v2')
         except EmbedderInitializationError as e:
             print("Error initializing embedder:", e)
             raise e
-
+        
         try: 
             retriever=VectorCypherRetriever(
                 driver=driver,
@@ -81,7 +87,7 @@ class GraphRAGChatbot(GraphRAG):
 
         prompt_template = RagTemplate(
             template=PROMPT_TEMPLATE,
-            expected_inputs=['context', 'query_text', 'roster_info', 'personal_info']
+            expected_inputs=['context', 'query_text', 'roster_info', 'exercise_info', 'sleep_info']
         )
 
         super().__init__(retriever, llm, prompt_template)
@@ -92,12 +98,12 @@ class GraphRAGChatbot(GraphRAG):
                     },
         }
         
-
     def chat(self, 
             current_query: str, 
             messages: List[dict] = [],
             roster_info: str = "", 
-            exercise_info: str = ""
+            exercise_info: str = "",
+            sleep_info: str = ""
             ) -> RagResultModel:
         """Perform a RAG search and return the response."""
 
@@ -109,6 +115,7 @@ class GraphRAGChatbot(GraphRAG):
             message_history=message_history,
             roster_info=roster_info,
             exercise_info=exercise_info,
+            sleep_info=sleep_info,
             retriever_config=self.retriever_config
         )
     

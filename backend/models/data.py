@@ -2,10 +2,11 @@
 # In production/a more rigorous POV, this data should be fetched from a secure database (can init some Firebase/MongoDB instance)
 
 # Mock user info dictionary for demo purposes
-import datetime
+from datetime import datetime
+
 from backend.models.exercise import generate_exercise_data
 from backend.models.personal import Personnel, Role
-from backend.models.roster import Roster
+from backend.models.roster import Roster, RosterType
 from backend.models.sleep import SleepCollection, generate_sleep_data
 
 
@@ -48,7 +49,7 @@ PERSONNELS_DATA = {
         roster_info=Roster.generate(
             start_date="2025-09-01",
             end_date="2025-09-30",
-            roster_type="EIGHT_HOUR",
+            roster_type=RosterType.EIGHT_HOUR,
             shift_sequence=[
                 "N", "M", "A", "OH", "N", "M", "A", "OH",
                 "N", "M", "A", "OH", "N", "M", "A", "OH",
@@ -63,7 +64,7 @@ PERSONNELS_DATA = {
         ),
         exercise_info=generate_exercise_data(
             user_id=1,
-            current_date=datetime(2025, 9, 1),
+            start_date=datetime(2025, 9, 1),
             end_date=datetime(2025, 9, 30)
         ), # add actual roster data here
     ),
@@ -76,7 +77,7 @@ PERSONNELS_DATA = {
         roster_info=Roster.generate(
             start_date="2025-09-01",
             end_date="2025-09-30",
-            roster_type="TWELVE_HOUR",
+            roster_type=RosterType.TWELVE_HOUR,
             shift_sequence=[
                 "A", "B/D", "C", "L", "A", "B/D", "C", "L",
                 "A", "B/D", "C", "L", "A", "B/D", "C", "L",
@@ -91,7 +92,7 @@ PERSONNELS_DATA = {
         ),
         exercise_info=generate_exercise_data(
             user_id=2,
-            current_date=datetime(2025, 9, 1),
+            start_date=datetime(2025, 9, 1),
             end_date=datetime(2025, 9, 30)
         )
     ),

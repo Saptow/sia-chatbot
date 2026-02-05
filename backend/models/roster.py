@@ -106,5 +106,5 @@ class Roster(BaseModel):
             current_dt += timedelta(days=1)
             seq_index += 1
 
-        return cls(start=start_date, end=end_date, roster_days=roster_days_list)
+        return cls(type=roster_type, start=start_date, end=end_date, roster_days=roster_days_list)
     

@@ -5,6 +5,9 @@ services:
         - "3000:8080"
       volumes:
         - open-webui:/app/backend/data
+      environment:
+        - OPENAI_API_BASE_URL=http://pipelines:9099
+        - OPENAI_API_KEY=0p3n-w3bu!
 
   pipelines:
     build:

@@ -81,7 +81,8 @@ class RagResultModel(BaseModel):
 
 class RagSearchModel(BaseModel):
     query_text: str
-    personal_info: str = ""
+    exercise_info: str = ""
+    sleep_info: str = ""
     roster_info: str = ""
     retriever_config: dict[str, Any] = {}
     return_context: bool = False
@@ -141,6 +142,7 @@ class GraphRAG:
         message_history: Optional[Union[List[LLMMessage], MessageHistory]] = None,
         roster_info: str = "",
         exercise_info: str = "",
+        sleep_info: str = "",
         retriever_config: Optional[dict[str, Any]] = None,
         return_context: Optional[bool] = None,
         response_fallback: Optional[str] = None,
@@ -181,6 +183,7 @@ class GraphRAG:
                 query_text=query_text,
                 exercise_info=exercise_info,
                 roster_info=roster_info,
+                sleep_info=sleep_info,
                 retriever_config=retriever_config or {},
                 return_context=return_context,
                 response_fallback=response_fallback,
@@ -198,7 +201,7 @@ class GraphRAG:
         else:
             context = "\n".join(item.content for item in retriever_result.items)
             prompt = self.prompt_template.format(
-                query_text=query_text, context=context, roster_info=roster_info, exercise_info=exercise_info
+                query_text=query_text, context=context, roster_info=roster_info, exercise_info=exercise_info, sleep_info=sleep_info
             )
             logger.debug(f"RAG: retriever_result={prettify(retriever_result)}")
             logger.debug(f"RAG: prompt={prompt}")

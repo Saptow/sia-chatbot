@@ -78,7 +78,7 @@ class Pipeline:
         # Define prompt template
         prompt_template=RagTemplate(
             template=PROMPT_TEMPLATE, 
-            expected_inputs=['context', 'query_text', 'roster_info', 'personal_info']
+            expected_inputs=['context', 'query_text', 'roster_info', 'exercise_info', 'sleep_info']
         )
         # Initialise RAG component
         rag=GraphRAG(
@@ -106,9 +106,10 @@ class Pipeline:
         body: dict = {} 
     ) -> Union[str, Generator, Iterator]:
         # Define the RAG pipeline here
-        user_id=self.valves.user_id
-        user_info=USER_INFO_DICTIONARY.get(user_id, None)
-        roster_info=user_info.get('roster_info', None) if user_info else None
+        from backend.models.data import PERSONNELS_DATA
+        from backend.models.personal import Personnel
+        # Fetch user info
+        user_info: Personnel = PERSONNELS_DATA.get(self.valves.user_id, None)
         
         # Fetching user
         # Embedding the query
@@ -117,17 +118,27 @@ class Pipeline:
         
         if messages:
             messages=[LLMMessage(**msg) for msg in messages]
+        # Parse user info to string format (JSON)
+        roster_info_str = ""
+        exercise_info_str = ""
+        sleep_info_str = ""
+
         if user_info:
-            user_info_str=parse_user_info(user_info)
-        if roster_info:
-            roster_info_str=parse_user_info(roster_info)
+            roster_info = user_info.roster_info
+            exercise_info = user_info.exercise_info
+            sleep_info = user_info.sleep_info
+
+            roster_info_str = roster_info.model_dump_json() if roster_info else ""
+            exercise_info_str = exercise_info.exercise_summary.model_dump_json() if exercise_info and exercise_info.exercise_summary else ""
+            sleep_info_str = sleep_info.summary.model_dump_json() if sleep_info and sleep_info.summary else ""
 
         # Perform the RAG search
         rag_result = self.rag.search(
             message_history=messages,
             query_text=user_message,
-            personal_info=user_info_str if user_info else "",
-            roster_info=roster_info_str if roster_info else "",
+            roster_info=roster_info_str,
+            exercise_info=exercise_info_str,
+            sleep_info=sleep_info_str,
             retriever_config={
                 "query_params": { # Cypher query parameters
                     "limit": 100,
