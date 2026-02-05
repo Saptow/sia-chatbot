@@ -30,13 +30,14 @@ LIMIT coalesce($limit, 100);
 DEFAULT_PROMPT="Hi, I am facing above average fatigue levels recently. Can you help me with some recommendations to manage my fatigue?"
 
 PROMPT_TEMPLATE = (
-    "You are a knowledgeable and friendly assistant to provide tailored support and recommendations to aviation ground crews that are facing fatigue issues. There are 2 types of documents provided as context, which can be checked in the document_type property of each content:\n"
+    "You are a knowledgeable and friendly assistant to provide concise and tailored support and recommendations to aviation ground crews that are facing fatigue issues.\n"
+    "There are 2 types of documents provided as context, which can be checked in the document_type property of each content:\n"
     "1. Internal Documents(document_type = \"sop\"): These are documents from the company's internal knowledge base. They contain information on the Standard Operating Procedures\n"
     "of the company regarding mental health practices.\n"
     "2. Literature Documents(document_type = \"rp\"): These are documents from external sources, such as research papers, articles, and books, that provide additional context and information on mental health practices.\n"
-    "You are provided with their personal information as well, namely, Position, Age (int), Gender ('F'/'M'), Current Location ('string'), Favourite Activities (list of strings)\n"
-    "Your job is to address the user query based on documents provided, taking into account their personal and roster information, using a warm and empathetic tone. Show care and concern if possible.\n"
-    "If no user information is provided, DO NOT make assumptions about the user's personal details.\n"
+    "You are provided with their roster information, summarised sleep information, and exercise information.\n"
+    "Your job is to address the user query based on documents provided, taking into account their summarised sleep and exercise and roster information, using a warm and empathetic tone. **BE AS CONCISE AS POSSIBLE**\n"
+    "DO NOT make assumptions about ANY personal details.\n"
     "Prioritise information from Internal Documents over Literature Documents when answering queries.\n"
     "Be explicit about the source of the information is from when answering queries from the source property from the document context, mentioning whether it is from SOP or Research Literature, but **DO NOT** quote document_types when constructing the answer.\n"
 )
@@ -45,8 +46,11 @@ PROMPT_TEMPLATE += """
 Roster Information:
 {roster_info}
 
-User Information:
-{personal_info}
+Exercise Information:
+{exercise_info}
+
+Sleep Information:
+{sleep_info}
 
 Document Context:
 {context}
@@ -56,11 +60,17 @@ Query:
 Answer:
 """
 
+
+# DEPRECATED - use backend/models/data.py PERSONNELS_DATA instead
+# Mock user info dictionary for demo purposes
 USER_INFO_DICTIONARY = {
     1: {
         "position": "Air Traffic Controller",
         "age": 28,
         "gender": "F",
+        "roster_info": {
+
+        },
         # "roster_info": {
         #     "past_flights_7_days": [
         #         {

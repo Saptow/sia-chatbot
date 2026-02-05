@@ -31,6 +31,7 @@ from neo4j_graphrag.utils.logging import prettify
 from pydantic import BaseModel, ConfigDict, field_validator
 from neo4j_graphrag.generation.prompts import PromptTemplate
 
+
 logger = logging.getLogger(__name__)
 
 class RagTemplate(PromptTemplate):
@@ -41,18 +42,21 @@ class RagTemplate(PromptTemplate):
 Roster Information:
 {roster_info}
 
-Personal Information:
-{personal_info}
+Exercise Information:
+{exercise_info}
+
+Sleep Information:
+{sleep_info}
 
 Question:
 {query_text}
 
 Answer:
 """
-    EXPECTED_INPUTS = ["context", "query_text", "roster_info", "personal_info"]
+    EXPECTED_INPUTS = ["context", "query_text", "roster_info", "exercise_info", "sleep_info"]
 
-    def format(self, query_text: str, context: str, roster_info: str, personal_info: str) -> str:
-        return super().format(query_text=query_text, context=context, roster_info=roster_info, personal_info=personal_info)
+    def format(self, query_text: str, context: str, roster_info: str, exercise_info: str, sleep_info: str) -> str:
+        return super().format(query_text=query_text, context=context, roster_info=roster_info, exercise_info=exercise_info, sleep_info=sleep_info)
 
 class RagInitModel(BaseModel):
     retriever: Retriever
@@ -136,7 +140,7 @@ class GraphRAG:
         query_text: str = "",
         message_history: Optional[Union[List[LLMMessage], MessageHistory]] = None,
         roster_info: str = "",
-        personal_info: str = "",
+        exercise_info: str = "",
         retriever_config: Optional[dict[str, Any]] = None,
         return_context: Optional[bool] = None,
         response_fallback: Optional[str] = None,
@@ -175,7 +179,7 @@ class GraphRAG:
         try:
             validated_data = RagSearchModel(
                 query_text=query_text,
-                personal_info=personal_info,
+                exercise_info=exercise_info,
                 roster_info=roster_info,
                 retriever_config=retriever_config or {},
                 return_context=return_context,
@@ -194,7 +198,7 @@ class GraphRAG:
         else:
             context = "\n".join(item.content for item in retriever_result.items)
             prompt = self.prompt_template.format(
-                query_text=query_text, context=context, roster_info=roster_info, personal_info=personal_info
+                query_text=query_text, context=context, roster_info=roster_info, exercise_info=exercise_info
             )
             logger.debug(f"RAG: retriever_result={prettify(retriever_result)}")
             logger.debug(f"RAG: prompt={prompt}")
@@ -245,3 +249,5 @@ Message Summary:
 Current Query:
 {current_query}
 """
+
+
