@@ -10,12 +10,14 @@ from backend.models.sleep import SleepCollection
 class Role(StrEnum):
     ATC='Air Traffic Controller'
 
-
-class Personnel(BaseModel):
-    user_id: int
+class PersonnelInfo(BaseModel):
+    name: Optional[str] = None
     position: Role
     age: int
     gender: str # 'M' or 'F'
+    
+class Personnel(PersonnelInfo):
+    user_id: int
     roster_info: Optional[Roster] = None
     personal_info: Optional[dict[str, Any]] = {}
     exercise_info: Optional[ExerciseCollection] = None

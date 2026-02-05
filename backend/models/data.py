@@ -42,6 +42,7 @@ USER_INFO_DICTIONARY = {
 # Dictionary mapping (user_id -> Personnel instances)
 PERSONNELS_DATA = {
     1: Personnel(
+        name="Aisha Lim",
         user_id=1,
         position=Role.ATC,
         age=28,
@@ -70,6 +71,7 @@ PERSONNELS_DATA = {
     ),
     
     2: Personnel(
+        name="Leo Tan",
         user_id=2,
         position=Role.ATC,
         age=31,

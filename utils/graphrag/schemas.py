@@ -15,7 +15,7 @@
 
 import logging
 import warnings
-from typing import Any, List, Optional, Union
+from typing import Any, AsyncGenerator, List, Optional, Union, Generator
 
 from pydantic import ValidationError
 
@@ -31,13 +31,18 @@ from neo4j_graphrag.utils.logging import prettify
 from pydantic import BaseModel, ConfigDict, field_validator
 from neo4j_graphrag.generation.prompts import PromptTemplate
 
+from backend.models.personal import Personnel, PersonnelInfo
+
 
 logger = logging.getLogger(__name__)
 
 class RagTemplate(PromptTemplate):
-    DEFAULT_SYSTEM_INSTRUCTIONS = "Answer the user question using the provided context."
+    DEFAULT_SYSTEM_INSTRUCTIONS = "Answer this specific user's question using the provided context."
     DEFAULT_TEMPLATE = """Document Information:
 {context}
+
+User Information:
+{user}
 
 Roster Information:
 {roster_info}
@@ -53,10 +58,10 @@ Question:
 
 Answer:
 """
-    EXPECTED_INPUTS = ["context", "query_text", "roster_info", "exercise_info", "sleep_info"]
+    EXPECTED_INPUTS = ["context", "query_text", "roster_info", "exercise_info", "sleep_info", "user"]
 
-    def format(self, query_text: str, context: str, roster_info: str, exercise_info: str, sleep_info: str) -> str:
-        return super().format(query_text=query_text, context=context, roster_info=roster_info, exercise_info=exercise_info, sleep_info=sleep_info)
+    def format(self, query_text: str, context: str, roster_info: str, exercise_info: str, sleep_info: str, user: str) -> str:
+        return super().format(query_text=query_text, context=context, roster_info=roster_info, exercise_info=exercise_info, sleep_info=sleep_info, user=user)
 
 class RagInitModel(BaseModel):
     retriever: Retriever
@@ -81,6 +86,7 @@ class RagResultModel(BaseModel):
 
 class RagSearchModel(BaseModel):
     query_text: str
+    user: str = ""
     exercise_info: str = ""
     sleep_info: str = ""
     roster_info: str = ""
@@ -140,13 +146,105 @@ class GraphRAG:
         self,
         query_text: str = "",
         message_history: Optional[Union[List[LLMMessage], MessageHistory]] = None,
+        user_info: Personnel = None,
+        retriever_config: Optional[dict[str, Any]] = None,
+        return_context: Optional[bool] = None,
+        response_fallback: Optional[str] = None,
+    ) -> RagResultModel:
+        """
+        .. warning::
+            The default value of 'return_context' will change from 'False' to 'True' in a future version.
+
+
+        This method performs a full RAG search:
+            1. Retrieval: context retrieval
+            2. Augmentation: prompt formatting
+            3. Generation: answer generation with LLM
+
+
+        Args:
+            query_text (str): The user question.
+            message_history (Optional[Union[List[LLMMessage], MessageHistory]]): A collection previous messages,
+                with each message having a specific role assigned.
+            examples (str): Examples added to the LLM prompt.
+            retriever_config (Optional[dict]): Parameters passed to the retriever.
+                search method; e.g.: top_k
+            return_context (bool): Whether to append the retriever result to the final result (default: False).
+            response_fallback (Optional[str]): If not null, will return this message instead of calling the LLM if context comes back empty.
+
+        Returns:
+            RagResultModel: The LLM-generated answer.
+
+        """
+        roster_info_str, exercise_info_str, sleep_info_str,user_info_str = "", "", "", ""
+        if user_info:
+            user_info_str=PersonnelInfo(
+                name=user_info.name,
+                position=user_info.position,
+                age=user_info.age,
+                gender=user_info.gender
+                ).model_dump_json()
+            exercise_info_str = user_info.exercise_info.model_dump_json() if user_info.exercise_info else ""
+            sleep_info_str = user_info.sleep_info.model_dump_json() if user_info.sleep_info else ""
+            roster_info_str = user_info.roster_info.model_dump_json() if user_info.roster_info else ""
+
+        if return_context is None:
+            warnings.warn(
+                "The default value of 'return_context' will change from 'False' to 'True' in a future version.",
+                DeprecationWarning,
+            )
+            return_context = False
+        
+        try:
+            validated_data = RagSearchModel(
+                query_text=query_text,
+                exercise_info=exercise_info_str,
+                roster_info=roster_info_str,
+                sleep_info=sleep_info_str,
+                user=user_info_str,
+                retriever_config=retriever_config or {},
+                return_context=return_context,
+                response_fallback=response_fallback,
+            )
+        except ValidationError as e:
+            raise SearchValidationError(e.errors())
+        if isinstance(message_history, MessageHistory):
+            message_history = message_history.messages
+        query = self._build_query(validated_data.query_text, message_history)
+        retriever_result: RetrieverResult = self.retriever.search(
+            query_text=query, **validated_data.retriever_config
+        )
+        if len(retriever_result.items) == 0 and response_fallback is not None:
+            answer = response_fallback
+        else:
+            context = "\n".join(item.content for item in retriever_result.items)
+            prompt = self.prompt_template.format(
+                query_text=query_text, context=context, roster_info=roster_info_str, exercise_info=exercise_info_str, sleep_info=sleep_info_str, user=user_info_str
+            )
+            logger.debug(f"RAG: retriever_result={prettify(retriever_result)}")
+            logger.debug(f"RAG: prompt={prompt}")
+            llm_response = self.llm.invoke(
+                prompt,
+                message_history,
+                system_instruction=self.prompt_template.system_instructions,
+            )
+            answer = llm_response.content
+        result: dict[str, Any] = {"answer": answer}
+        if return_context:
+            result["retriever_result"] = retriever_result
+        return RagResultModel(**result)
+
+    async def asearch(
+        self,
+        query_text: str = "",
+        message_history: Optional[Union[List[LLMMessage], MessageHistory]] = None,
         roster_info: str = "",
         exercise_info: str = "",
         sleep_info: str = "",
         retriever_config: Optional[dict[str, Any]] = None,
         return_context: Optional[bool] = None,
         response_fallback: Optional[str] = None,
-    ) -> RagResultModel:
+    ) -> AsyncGenerator[str, None]:
         """
         .. warning::
             The default value of 'return_context' will change from 'False' to 'True' in a future version.
@@ -205,17 +303,28 @@ class GraphRAG:
             )
             logger.debug(f"RAG: retriever_result={prettify(retriever_result)}")
             logger.debug(f"RAG: prompt={prompt}")
-            llm_response = self.llm.invoke(
-                prompt,
-                message_history,
-                system_instruction=self.prompt_template.system_instructions,
-            )
-            answer = llm_response.content
-        result: dict[str, Any] = {"answer": answer}
-        if return_context:
-            result["retriever_result"] = retriever_result
-        return RagResultModel(**result)
+            # Implement streaming here
+            async_client = self.llm.async_client()
+            async def token_generator():
+                stream = await async_client.chat.completions.create(
+                    model=self.llm.model_name,
+                    messages=[
+                        {"role": "system", "content": self.prompt_template.system_instructions},
+                        *(
+                            [{"role": msg.role, "content": msg.content} for msg in message_history]
+                            if message_history
+                            else []
+                        ),
+                        {"role": "user", "content": prompt},
+                    ],
+                    stream=True,
+                )
+                async for chunk in stream:
+                    if chunk.choices[0].delta.content:
+                        yield chunk.choices[0].delta.content
+            return token_generator()
 
+    
     def _build_query(
         self,
         query_text: str,

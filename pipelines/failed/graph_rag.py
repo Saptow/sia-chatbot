@@ -12,6 +12,7 @@ class Pipeline:
         NEO4J_USERNAME: str
         NEO4J_PASSWORD: str
         user_id: int
+        stream: bool = False
 
     def __init__(self):
         self.name='Graph RAG'
@@ -28,6 +29,7 @@ class Pipeline:
                 'NEO4J_USERNAME': os.getenv('NEO4J_USERNAME', ''),
                 'NEO4J_PASSWORD': os.getenv('NEO4J_PASSWORD', ''),
                 'user_id': 1, # Default user_id
+                'stream': False,
             }
         )
 
@@ -75,7 +77,7 @@ class Pipeline:
         # Define prompt template
         prompt_template=RagTemplate(
             template=PROMPT_TEMPLATE, 
-            expected_inputs=['context', 'query_text', 'roster_info', 'exercise_info', 'sleep_info', 'user']
+            expected_inputs=['context', 'query_text', 'roster_info', 'exercise_info', 'sleep_info']
         )
         # Initialise RAG component
         rag=GraphRAG(
@@ -95,7 +97,7 @@ class Pipeline:
             self.driver.close()
         pass
 
-    def pipe(
+    async def pipe(
         self, 
         model_id: str,
         user_message: str,
@@ -115,16 +117,47 @@ class Pipeline:
         
         if messages:
             messages=[LLMMessage(**msg) for msg in messages]
+        # Parse user info to string format (JSON)
+        roster_info_str = ""
+        exercise_info_str = ""
+        sleep_info_str = ""
+
+        if user_info:
+            roster_info = user_info.roster_info
+            exercise_info = user_info.exercise_info
+            sleep_info = user_info.sleep_info
+
+            roster_info_str = roster_info.model_dump_json() if roster_info else ""
+            exercise_info_str = exercise_info.exercise_summary.model_dump_json() if exercise_info and exercise_info.exercise_summary else ""
+            sleep_info_str = sleep_info.summary.model_dump_json() if sleep_info and sleep_info.summary else ""
 
         # Perform the RAG search
-        rag_result = self.rag.search(
-            message_history=messages,
-            query_text=user_message,
-            user_info=user_info,
-            retriever_config={
-                "query_params": { # Cypher query parameters
-                    "limit": 100,
-                    },
-        },
-        )
-        return rag_result.answer
+        if self.valves.stream: 
+            token_generator = self.rag.asearch(
+                message_history=messages,
+                query_text=user_message,
+                roster_info=roster_info_str,
+                exercise_info=exercise_info_str,
+                sleep_info=sleep_info_str,
+                retriever_config={
+                    "query_params": { # Cypher query parameters
+                        "limit": 100,
+                        },
+            },
+            )
+            for token in token_generator:
+                yield token
+        else:
+            rag_result = self.rag.search(
+                message_history=messages,
+                query_text=user_message,
+                roster_info=roster_info_str,
+                exercise_info=exercise_info_str,
+                sleep_info=sleep_info_str,
+                retriever_config={
+                    "query_params": { # Cypher query parameters
+                        "limit": 100,
+                        },
+            },
+            )
+            return rag_result.answer
